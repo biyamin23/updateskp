@@ -165,6 +165,87 @@ function statusFor(done, total) {
   return { label: 'Dalam proses', tone: 'warning' }
 }
 
+function getRoleScore(skp, role = '') {
+  const value = String(role).trim()
+  if (!value) return null
+
+  if (skp === 'BWP') {
+    if (value === 'Presiden') return 10
+    if (value === 'Timbalan Presiden') return 8
+    if (/^Naib Presiden (I|II|III)$/.test(value)) return 7
+    if (value === 'Setiausaha Agung' || value === 'Bendahari Agung' || value.startsWith('Exco ')) return 6
+  }
+
+  if (skp === 'LDP') {
+    if (value === 'Presiden' || value === 'Presiden LDP') return 7
+    if (['Timbalan Presiden', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (value.startsWith('Penguasa ') || value === 'Penguat Kuasa' || value === 'Penguatkuasa') return 3
+  }
+
+  if (skp === 'BADAR') {
+    if (value === 'Pengerusi' || value === 'Presiden') return 7
+    if (
+      value.startsWith('Timbalan Pengerusi') ||
+      value.startsWith('Timbalan Presiden') ||
+      ['Setiausaha', 'Bendahari'].includes(value)
+    ) return 5
+    if (value.startsWith('Lajnah ') || value.startsWith('JK ') || value.startsWith('AJK ')) return 3
+  }
+
+  if (skp === 'SRM') {
+    if (value === 'Pengerusi') return 6
+    if (['Presiden', 'Timbalan Presiden', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (
+      value.startsWith('Juru ') ||
+      value === 'Jurnalis' ||
+      value.startsWith('Editor ') ||
+      value === 'Pereka' ||
+      value.startsWith('AJK ')
+    ) return 3
+  }
+
+  if (skp === 'EMC') {
+    if (value === 'Pengerusi') return 6
+    if (['Ketua EMC', 'Timbalan Ketua EMC', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (value.startsWith('Jawatankuasa ')) return 3
+  }
+
+  if (skp === 'PPSP') {
+    if (value === 'Pengerusi') return 6
+    if (['Ketua PPSP', 'Timbalan Ketua PPSP', 'Timb Ketua PPSP', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (value.startsWith('AJK ')) return 3
+  }
+
+  if (skp === 'PRS') {
+    if (['Ketua', 'Timbalan Ketua', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (value.startsWith('Rakan ')) return 3
+  }
+
+  if (skp === 'JPA') {
+    if (['Ketua JPA', 'Ketua', 'Timbalan Ketua', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (
+      value.startsWith('Biro ') ||
+      value === 'Kebersihan & Keceriaan' ||
+      value === 'Kebersihan dan Keceriaan' ||
+      value === 'Fasiliti & Kemudahan' ||
+      value === 'Fasiliti dan Kemudahan'
+    ) return 3
+  }
+
+  if (skp === 'ALK') {
+    if (value === 'Pengerusi') return 6
+    if (['Ketua ALK', 'Ketua', 'Timbalan', 'Timbalan ALK', 'Setiausaha', 'Bendahari'].includes(value)) return 5
+    if (value.startsWith('ALK ')) return 3
+  }
+
+  if (skp === 'PUM') {
+    if (value.startsWith('Pengarah ')) return 5
+    if (value === 'Ahli Syarikat') return 3
+  }
+
+  return null
+}
+
 function Dashboard({ records, onSelectSkp, onAdmin }) {
   const groups = useMemo(() => {
     const map = new Map()
@@ -326,14 +407,28 @@ function SkpPage({ code, records, onBack, onChange }) {
                 onChange={(e) => onChange(r.id, e.target.value)}
               >
                 <option value="">— Pilih jawatan —</option>
-                {r.options.map((option) => (
-                  <option value={option} key={option}>{option}</option>
-                ))}
+                {r.options.map((option) => {
+                  const score = getRoleScore(r.skp, option)
+                  return (
+                    <option value={option} key={option}>
+                      {option}{score !== null ? ` — ${score} markah` : ''}
+                    </option>
+                  )
+                })}
               </select>
             </label>
 
             <div className="save-state">
-              {r.selected_role ? '✓ Disimpan' : 'Belum dikemaskini'}
+              {r.selected_role ? (
+                <>
+                  ✓ Disimpan
+                  {getRoleScore(r.skp, r.selected_role) !== null && (
+                    <span> · {getRoleScore(r.skp, r.selected_role)} markah PAJSK</span>
+                  )}
+                </>
+              ) : (
+                'Belum dikemaskini'
+              )}
             </div>
           </article>
         ))}
