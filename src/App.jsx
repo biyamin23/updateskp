@@ -13,7 +13,8 @@ import {
   Upload,
   Users,
 } from 'lucide-react'
-import { isSupabaseConfigured, supabase } from './supabase'
+import { collection, doc, getDocs, updateDoc, writeBatch } from 'firebase/firestore'
+import { db, isFirebaseConfigured } from './firebase'
 
 const STORAGE_KEY = 'updateskp_records_v1'
 
@@ -434,9 +435,9 @@ function AdminPage({ records, onBack, onImport, onReset, onRefresh }) {
           <RefreshCcw size={28} />
           <h3>Sync data</h3>
           <p>
-            {isSupabaseConfigured
-              ? 'Supabase aktif. Muat semula keputusan terbaru daripada pangkalan data.'
-              : 'Supabase belum dikonfigurasi. App sedang menggunakan localStorage pada peranti ini.'}
+            {isFirebaseConfigured
+              ? 'Firebase aktif. Muat semula keputusan terbaru daripada pangkalan data.'
+              : 'Firebase belum dikonfigurasi. App sedang menggunakan localStorage pada peranti ini.'}
           </p>
           <button className="secondary-btn" onClick={onRefresh}>
             <RefreshCcw size={17} /> Refresh
@@ -446,14 +447,14 @@ function AdminPage({ records, onBack, onImport, onReset, onRefresh }) {
         <article className="admin-card danger-zone">
           <Users size={28} />
           <h3>Reset data tempatan</h3>
-          <p>Padam data pada browser ini sahaja. Data Supabase tidak dipadam.</p>
+          <p>Padam data pada browser ini sahaja. Data Firestore tidak dipadam.</p>
           <button className="danger-btn" onClick={onReset}>Reset local data</button>
         </article>
       </section>
 
       <section className="connection-note">
         <strong>Status backend:</strong>{' '}
-        {isSupabaseConfigured ? 'Supabase connected' : 'Demo/local mode'}
+        {isFirebaseConfigured ? 'Firebase connected' : 'Demo/local mode'}
       </section>
     </>
   )
@@ -469,14 +470,11 @@ export default function App() {
   async function fetchRecords() {
     setLoading(true)
     try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('role_updates')
-          .select('*')
-          .order('skp')
-          .order('name')
-        if (error) throw error
-        const normalized = (data || []).map(normalizeRecord)
+      if (isFirebaseConfigured) {
+        const snapshot = await getDocs(collection(db, 'role_updates'))
+        const normalized = snapshot.docs
+          .map((snap) => normalizeRecord({ id: snap.id, ...snap.data() }))
+          .sort((a, b) => a.skp.localeCompare(b.skp) || a.name.localeCompare(b.name))
         setRecords(normalized)
         saveLocal(normalized)
       } else {
@@ -486,7 +484,7 @@ export default function App() {
       console.error(error)
       const local = loadLocal().map(normalizeRecord)
       setRecords(local)
-      setToast('Supabase tidak dapat dicapai. Data tempatan digunakan.')
+      setToast('Firebase tidak dapat dicapai. Data tempatan digunakan.')
     } finally {
       setLoading(false)
     }
@@ -505,20 +503,17 @@ export default function App() {
     setRecords(updated)
     saveLocal(updated)
 
-    if (isSupabaseConfigured) {
-      const record = updated.find((r) => r.id === id)
-      const { error } = await supabase
-        .from('role_updates')
-        .update({
+    if (isFirebaseConfigured) {
+      try {
+        const record = updated.find((r) => r.id === id)
+        await updateDoc(doc(db, 'role_updates', record.id), {
           selected_role: selectedRole || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', record.id)
-      if (error) {
-        console.error(error)
-        setToast('Gagal sync ke Supabase. Pilihan masih disimpan pada browser ini.')
-      } else {
         setToast('Disimpan')
+      } catch (error) {
+        console.error(error)
+        setToast('Gagal sync ke Firebase. Pilihan masih disimpan pada browser ini.')
       }
     } else {
       setToast('Disimpan pada browser')
@@ -530,22 +525,26 @@ export default function App() {
     setRecords(cleaned)
     saveLocal(cleaned)
 
-    if (isSupabaseConfigured) {
-      const payload = cleaned.map((r) => ({
-        id: r.id,
-        row_number: r.row_number,
-        nomak: r.nomak,
-        name: r.name,
-        skp: r.skp,
-        skp_name: r.skp_name,
-        old_role: r.old_role,
-        options: r.options,
-        selected_role: r.selected_role || null,
-      }))
-      const { error } = await supabase.from('role_updates').upsert(payload)
-      if (error) {
+    if (isFirebaseConfigured) {
+      try {
+        const batch = writeBatch(db)
+        cleaned.forEach((r) => {
+          batch.set(doc(db, 'role_updates', r.id), {
+            row_number: r.row_number,
+            nomak: r.nomak,
+            name: r.name,
+            skp: r.skp,
+            skp_name: r.skp_name,
+            old_role: r.old_role,
+            options: r.options,
+            selected_role: r.selected_role || null,
+            updated_at: r.updated_at || new Date().toISOString(),
+          }, { merge: true })
+        })
+        await batch.commit()
+      } catch (error) {
         console.error(error)
-        alert('Data masuk ke browser tetapi gagal sync Supabase: ' + error.message)
+        alert('Data masuk ke browser tetapi gagal sync Firebase: ' + error.message)
         return
       }
     }
@@ -556,7 +555,7 @@ export default function App() {
   function resetLocal() {
     if (!confirm('Padam semua data tempatan pada browser ini?')) return
     localStorage.removeItem(STORAGE_KEY)
-    if (!isSupabaseConfigured) setRecords([])
+    if (!isFirebaseConfigured) setRecords([])
     setToast('Data tempatan dipadam')
   }
 
