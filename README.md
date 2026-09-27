@@ -11,35 +11,28 @@ Portal web untuk guru penasihat mengemaskini penjawatan Sekretariat Kepimpinan P
 - Progress bar/donut
 - Admin import fail Excel semakan
 - Admin export keputusan
-- Local demo mode jika Supabase belum dikonfigurasi
-- Shared mode menggunakan Supabase
+- Local demo mode jika Firebase belum dikonfigurasi
+- Shared mode menggunakan Firebase Cloud Firestore
 
-## Setup
+## Setup lokal
 
 ```bash
 npm install
 npm run dev
 ```
 
-### Supabase
+Copy `.env.example` kepada `.env.local` dan isi Firebase Web App config.
 
-1. Create project di Supabase.
-2. Buka **SQL Editor** dan run `supabase/schema.sql`.
-3. Copy `.env.example` ke `.env.local`.
-4. Isi:
+## Firebase
 
-```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
-```
-
-5. Restart `npm run dev`.
-
-Tanpa env Supabase, app masih boleh digunakan sebagai demo tetapi data hanya tersimpan di browser (localStorage).
+1. Firebase Console → Databases and storage → Firestore Database → Create database.
+2. Gunakan collection `role_updates`.
+3. Deploy rules dalam `firestore.rules`, atau paste rules itu di Firestore → Rules.
+4. Isi environment variables Firebase di Vercel.
 
 ## Import data
 
-Pada **Admin → Import fail semakan**, upload fail Excel yang mengandungi sheet **Perlu Keputusan** dengan column:
+Admin → Import fail Excel semakan. App membaca sheet **Perlu Keputusan** dan column:
 
 - No. Maktab
 - Nama Pelajar
@@ -48,17 +41,25 @@ Pada **Admin → Import fail semakan**, upload fail Excel yang mengandungi sheet
 - Pilihan Jawatan Rasmi 2026
 - Keputusan Biyamin (optional)
 
-Selepas import, guru boleh masuk ke SKP masing-masing dan memilih jawatan daripada dropdown.
+Semua keputusan guru disimpan ke collection `role_updates`.
 
 ## Deploy Vercel
 
-Import repo ini di Vercel dan tambah Environment Variables:
+Import repo ini di Vercel.
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+Build command: `npm run build`
+Output directory: `dist`
 
-Framework preset: **Vite**.
+Tambah Environment Variables:
+
+- VITE_FIREBASE_API_KEY
+- VITE_FIREBASE_AUTH_DOMAIN
+- VITE_FIREBASE_PROJECT_ID
+- VITE_FIREBASE_STORAGE_BUCKET
+- VITE_FIREBASE_MESSAGING_SENDER_ID
+- VITE_FIREBASE_APP_ID
+- VITE_FIREBASE_MEASUREMENT_ID
 
 ## Nota keselamatan
 
-Schema MVP membenarkan akses anon read/insert/update supaya portal dalaman boleh digunakan cepat. Untuk deployment jangka panjang, tambah login guru/PIN dan RLS mengikut SKP.
+Rules MVP membenarkan read/create/update tanpa login supaya guru boleh terus menggunakan portal. Ini sesuai untuk portal dalaman sementara. Selepas MVP stabil, tambah Firebase Authentication atau PIN per SKP dan ketatkan Firestore Rules.
