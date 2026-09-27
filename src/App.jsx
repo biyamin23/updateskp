@@ -357,14 +357,45 @@ function AdminPage({ records, onBack, onImport, onReset, onRefresh }) {
       const sheetName =
         book.SheetNames.find((x) => x.toLowerCase().includes('perlu keputusan')) ||
         book.SheetNames[0]
-      const rows = XLSX.utils.sheet_to_json(book.Sheets[sheetName], { defval: '' })
+      const rawRows = XLSX.utils.sheet_to_json(book.Sheets[sheetName], {
+        header: 1,
+        defval: '',
+        blankrows: false,
+      })
+
+      const normalizeHeader = (value) =>
+        String(value || '').trim().toLowerCase().replace(/\\s+/g, ' ')
+
+      const headerIndex = rawRows.findIndex((row) => {
+        const headers = row.map(normalizeHeader)
+        return (
+          headers.includes('no. maktab') &&
+          headers.includes('nama pelajar') &&
+          headers.includes('skp')
+        )
+      })
+
+      if (headerIndex === -1) {
+        alert(
+          'Header tidak dijumpai. Pastikan fail mengandungi column No. Maktab, Nama Pelajar dan SKP.'
+        )
+        return
+      }
+
+      const headers = rawRows[headerIndex].map((h) => String(h || '').trim())
+      const rows = rawRows.slice(headerIndex + 1).map((row) =>
+        Object.fromEntries(headers.map((header, index) => [header, row[index] ?? '']))
+      )
+
       const normalized = rows
         .filter((r) => r['No. Maktab'] || r.nomak || r['Nama Pelajar'])
         .map((r, i) => normalizeRecord(r, i))
         .filter((r) => r.nomak && r.skp && r.options.length)
 
       if (!normalized.length) {
-        alert('Tiada rekod yang boleh dibaca. Pastikan fail ialah fail semakan jawatan yang dijana.')
+        alert(
+          'Header berjaya dibaca tetapi tiada rekod valid ditemui. Semak column No. Maktab, SKP dan Pilihan Jawatan Rasmi 2026.'
+        )
         return
       }
       await onImport(normalized)
