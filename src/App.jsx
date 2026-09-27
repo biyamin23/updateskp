@@ -189,7 +189,15 @@ function Dashboard({ records, onSelectSkp, onAdmin }) {
             Guru penasihat pilih jawatan rasmi 2026 untuk pelajar di bawah SKP masing-masing.
           </p>
         </div>
-        <button className="icon-btn" onClick={onAdmin} title="Admin">
+        <button
+          className="icon-btn"
+          onClick={() => {
+            const pin = window.prompt('Masukkan PIN Admin')
+            if (pin === '310826') onAdmin()
+            else if (pin !== null) window.alert('PIN Admin tidak tepat.')
+          }}
+          title="Admin"
+        >
           <Settings size={20} />
         </button>
       </header>
